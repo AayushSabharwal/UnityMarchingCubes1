@@ -1,0 +1,58 @@
+﻿#pragma kernel CSMain
+#include "/Tables.compute"
+
+struct tri
+{
+    float3 a, b, c;
+};
+
+AppendStructuredBuffer<tri> Result;
+RWStructuredBuffer<float4> pts;
+int ppa;
+float surfaceLevel;
+
+int coordToInd(int x, int y, int z)
+{
+    return x + y * ppa + z * ppa * ppa;
+}
+
+float3 interp(float4 a, float4 b)
+{
+    return a.xyz + (b.xyz - a.xyz)*(surfaceLevel-a.w)/(b.w-a.w);
+}
+
+[numthreads(8,8,8)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x >= ppa - 1 || id.y >= ppa - 1 || id.z >= ppa - 1)
+        return;
+    float4 corners[] = {
+        pts[coordToInd(id.x, id.y, id.z)],
+        pts[coordToInd(id.x+1, id.y, id.z)],
+        pts[coordToInd(id.x+1, id.y, id.z+1)],
+        pts[coordToInd(id.x, id.y, id.z+1)],
+        pts[coordToInd(id.x, id.y+1, id.z)],
+        pts[coordToInd(id.x+1, id.y+1, id.z)],
+        pts[coordToInd(id.x+1, id.y+1, id.z+1)],
+        pts[coordToInd(id.x, id.y+1, id.z+1)],
+    };
+    int cubeInd = 0;
+    
+    if(corners[0].w < surfaceLevel) cubeInd |= 1;
+    if(corners[1].w < surfaceLevel) cubeInd |= 2;
+    if(corners[2].w < surfaceLevel) cubeInd |= 4;
+    if(corners[3].w < surfaceLevel) cubeInd |= 8;
+    if(corners[4].w < surfaceLevel) cubeInd |= 16;
+    if(corners[5].w < surfaceLevel) cubeInd |= 32;
+    if(corners[6].w < surfaceLevel) cubeInd |= 64;
+    if(corners[7].w < surfaceLevel) cubeInd |= 128;
+    
+    for(int j = 0; triTable[cubeInd][j] != -1; j += 3)
+    {
+        tri t;
+        t.a = interp(corners[edgeToCornerIndexA[triTable[cubeInd][j]]], corners[edgeToCornerIndexB[triTable[cubeInd][j]]]);
+        t.c = interp(corners[edgeToCornerIndexA[triTable[cubeInd][j+1]]], corners[edgeToCornerIndexB[triTable[cubeInd][j+1]]]);
+        t.b = interp(corners[edgeToCornerIndexA[triTable[cubeInd][j+2]]], corners[edgeToCornerIndexB[triTable[cubeInd][j+2]]]);
+        Result.Append(t);
+    }
+}

@@ -1,0 +1,11 @@
+﻿RWStructuredBuffer<float4> pts;
+int ppa;
+float3 offset;
+float sampleInterval;
+float3 octaves[9];
+int nOctaves;
+
+int coordToIndex(int x, int y, int z)
+{
+    return x + y*ppa + z*ppa*ppa;
+}

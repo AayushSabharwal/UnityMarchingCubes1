@@ -1,0 +1,31 @@
+﻿#pragma kernel CSMain
+#include "/Density.compute"
+
+#pragma multi_compile SNOISE PNOISE
+#if defined(SNOISE)
+#include "Packages/jp.keijiro.noiseshader/Shader/SimplexNoise3D.hlsl"
+#define noise(t) snoise_grad(t)
+
+#elif defined(PNOISE)
+#include "Packages/jp.keijiro.noiseshader/Shader/ClassicNoise3D.hlsl"
+#define noise(t) cnoise(t)
+#endif
+
+float density(float3 pos)
+{
+    float value = -pos.y;
+    for(int i = 0; i < nOctaves; i++)
+        value += noise(float3(pos.x*octaves[i].y, pos.y*octaves[i].y, pos.z*octaves[i].y))*octaves[i].x;
+    
+    return value;
+}
+
+[numthreads(8,8,8)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x >= ppa || id.y >= ppa || id.z >= ppa)
+        return;
+    
+    float3 pos = id*sampleInterval + offset;
+    pts[coordToIndex(id.x, id.y, id.z)] = float4(pos-offset, density(pos));
+}
